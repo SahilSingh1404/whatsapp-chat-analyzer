@@ -2,14 +2,39 @@ import streamlit as st
 import preprocessor,helper
 import matplotlib.pyplot as plt
 import seaborn as sns
+import re
+from datetime import datetime
 
 st.sidebar.title("Whatsapp Chat Analyzer")
+
+def convert_to_24hr_format(chat_data: str) -> str:
+    """Convert WhatsApp chat timestamps from 12-hour to 24-hour format."""
+    pattern = r"^(\d{1,2}/\d{1,2}/\d{2,4}), (\d{1,2}:\d{2})\s*(AM|PM|am|pm) -"
+    converted_lines = []
+    for line in chat_data.splitlines():
+        match = re.match(pattern, line)
+        if match:
+            date_str, time_str, am_pm = match.groups()
+            try:
+                dt = datetime.strptime(f"{date_str}, {time_str} {am_pm.upper()}", "%d/%m/%Y, %I:%M %p")
+            except ValueError:
+                try:
+                    dt = datetime.strptime(f"{date_str}, {time_str} {am_pm.upper()}", "%d/%m/%y, %I:%M %p")
+                except ValueError:
+                    converted_lines.append(line)
+                    continue
+            new_timestamp = f"{date_str}, {dt.strftime('%H:%M')} -"
+            line = re.sub(pattern, new_timestamp, line)
+        converted_lines.append(line)
+    return "\n".join(converted_lines)
 
 uploaded_file = st.sidebar.file_uploader("Choose a file")
 if uploaded_file is not None:
     bytes_data = uploaded_file.getvalue()
     data = bytes_data.decode("utf-8")
-    df = preprocessor.preprocess(data)
+    
+    data_24hr = convert_to_24hr_format(data)
+    df = preprocessor.preprocess(data_24hr)
 
     # fetch unique users
     user_list = df['user'].unique().tolist()
